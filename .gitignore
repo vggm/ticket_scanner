@@ -1,0 +1,7 @@
+.env
+data/
+eval/tickets/
+eval/results/
+__pycache__/
+.venv/
+.pytest_cache/
