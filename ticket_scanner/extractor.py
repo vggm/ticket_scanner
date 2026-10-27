@@ -1,5 +1,6 @@
 """Extracción de tickets con Pydantic AI: reintento con modelo potente y respaldo."""
 
+import re
 from dataclasses import dataclass
 from datetime import date
 
@@ -63,6 +64,22 @@ def build_model(spec: str, settings: Settings) -> Model:
     raise ValueError(f"Modelo no soportado: {spec!r}")
 
 
+def _retry_delay_from_body(body: object) -> float | None:
+    """Gemini manda la espera en error.details[] (RetryInfo.retryDelay, p. ej. "17s")."""
+    if not isinstance(body, dict):
+        return None
+    if isinstance(body.get("error"), dict):
+        body = body["error"]
+    details = body.get("details")
+    if not isinstance(details, list):
+        return None
+    for d in details:
+        delay = d.get("retryDelay") if isinstance(d, dict) else None
+        if isinstance(delay, str) and re.fullmatch(r"\d+(\.\d+)?s", delay):
+            return float(delay[:-1])
+    return None
+
+
 def _retry_after(exc: BaseException) -> float | None:
     """retry_after del primer 429 contenido en la excepción (o grupo)."""
     if isinstance(exc, BaseExceptionGroup):
@@ -72,7 +89,9 @@ def _retry_after(exc: BaseException) -> float | None:
                 return found
         return None
     if isinstance(exc, ModelHTTPError) and exc.status_code == 429:
-        return exc.retry_after
+        if exc.retry_after is not None:
+            return exc.retry_after
+        return _retry_delay_from_body(exc.body)
     return None
 
 

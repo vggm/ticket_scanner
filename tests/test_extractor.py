@@ -138,3 +138,27 @@ def test_build_model_parsing(settings):
     assert isinstance(m, OllamaModel) and m.model_name == "qwen3-vl:8b"
     with pytest.raises(ValueError):
         build_model("openai:gpt", settings)
+
+
+@pytest.mark.parametrize("body", [
+    {"error": {"code": 429, "details": [
+        {"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "17s"}]}},
+    {"details": [{"@type": "type.googleapis.com/google.rpc.RetryInfo", "retryDelay": "17.5s"}]},
+])
+async def test_429_retry_delay_from_body(body):
+    async def boom(messages, info):
+        raise ModelHTTPError(status_code=429, model_name="m", body=body)
+
+    with pytest.raises(ModelUnavailable) as e:
+        await Extractor(FunctionModel(boom, model_name="m")).extract(JPEG, TODAY)
+    assert e.value.retry_after == float(body.get("error", body)["details"][0]["retryDelay"][:-1])
+
+
+@pytest.mark.parametrize("body", [None, "texto", [1], {"error": "x"}, {"details": ["x", {"retryDelay": 3}]}])
+async def test_429_odd_body_is_ignored(body):
+    async def boom(messages, info):
+        raise ModelHTTPError(status_code=429, model_name="m", body=body)
+
+    with pytest.raises(ModelUnavailable) as e:
+        await Extractor(FunctionModel(boom, model_name="m")).extract(JPEG, TODAY)
+    assert e.value.retry_after is None
