@@ -10,6 +10,8 @@ def ex(**kw):
     """Ticket válido por defecto: LECHE 2×0.95=1.90 + PLATANO 0.532×1.99=1.06, total 2.96."""
     base = dict(
         is_receipt=True,
+        legible=True,
+        multiple_receipts=False,
         store_name="SUPER",
         store_tax_id="A12345678",
         date="2026-10-27",
@@ -85,3 +87,11 @@ def test_empty_ticket_with_null_total():
 def test_no_items_with_positive_total_also_sum_mismatch():
     c = codes(check(ex(items=[], total=5.0), TODAY))
     assert "no_items" in c and "sum_mismatch" in c
+
+
+def test_low_quality_when_not_legible():
+    assert codes(check(ex(legible=False), TODAY)) == ["low_quality"]
+
+
+def test_multiple_receipts_warning():
+    assert codes(check(ex(multiple_receipts=True), TODAY)) == ["multiple_receipts"]

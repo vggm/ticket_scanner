@@ -33,6 +33,8 @@ def item(desc, qty, price, amount):
 
 GOOD = {
     "is_receipt": True,
+    "legible": True,
+    "multiple_receipts": False,
     "store_name": "SUPER",
     "store_tax_id": "A12345678",
     "date": "2026-10-27",
@@ -206,3 +208,15 @@ async def test_retry_receives_all_images():
         [b"one", b"two"], TODAY
     )
     assert [c.data for c in seen[0] if isinstance(c, BinaryContent)] == [b"one", b"two"]
+
+
+async def test_not_legible_returns_revisar_with_low_quality():
+    r = await Extractor(fm({**GOOD, "legible": False}, "lite")).extract(JPEG, TODAY)
+    assert r.response.status == "revisar"
+    assert [w.code for w in r.response.warnings] == ["low_quality"]
+
+
+def test_prompt_mentions_quality_flags():
+    from ticket_scanner.prompt import INSTRUCTIONS
+
+    assert "legible" in INSTRUCTIONS and "multiple_receipts" in INSTRUCTIONS

@@ -13,4 +13,8 @@ Reglas:
 - Ignora el desglose de IVA, la forma de pago, el cambio y los textos promocionales.
 - La fecha va en formato AAAA-MM-DD.
 - Si la imagen no es un ticket de compra, pon is_receipt=false.
+- Si aparecen varios tickets distintos, extrae solo el más completo y legible y marca \
+multiple_receipts=true.
+- Si la foto está borrosa, oscura o cortada, o no puedes leer algo con seguridad, marca \
+legible=false y pon null en lo que no se lea; nunca inventes importes.
 """

@@ -30,7 +30,7 @@ def _result(status="ok") -> ExtractionResult:
             total_cents=296, items=[], model="lite",
         ),
         raw=TicketExtraction(
-            is_receipt=True, store_name="X", store_tax_id=None, date="2026-10-01",
+            is_receipt=True, legible=True, multiple_receipts=False, store_name="X", store_tax_id=None, date="2026-10-01",
             total=2.96, items=[],
         ),
         model_used="lite", retried=False, fell_back=False, input_tokens=10, output_tokens=5,

@@ -19,6 +19,8 @@ def test_to_cents_rounding():
 def test_build_response_ok_and_revisar():
     ex = TicketExtraction(
         is_receipt=True,
+        legible=True,
+        multiple_receipts=False,
         store_name="Mercadona",
         store_tax_id="A46103834",
         date="2026-10-27",
@@ -38,7 +40,8 @@ def test_build_response_ok_and_revisar():
 
 def test_null_total_is_zero_cents():
     ex = TicketExtraction(
-        is_receipt=True, store_name=None, store_tax_id=None, date=None, total=None, items=[]
+        is_receipt=True, legible=True, multiple_receipts=False, store_name=None,
+        store_tax_id=None, date=None, total=None, items=[],
     )
     assert build_response(ex, [], "m").total_cents == 0
 
@@ -46,3 +49,10 @@ def test_null_total_is_zero_cents():
 def test_extraction_schema_amounts_are_numbers():
     props = TicketExtraction.model_json_schema()["properties"]
     assert '"string"' not in json.dumps(props["total"])  # number|null, sin el anyOf de Decimal
+
+
+def test_extraction_schema_quality_flags_required_booleans():
+    schema = TicketExtraction.model_json_schema()
+    for campo in ("legible", "multiple_receipts"):
+        assert campo in schema["required"]
+        assert schema["properties"][campo]["type"] == "boolean"
