@@ -1,0 +1,29 @@
+[project]
+name = "ticket-scanner"
+version = "0.1.0"
+description = "Servicio HTTP que convierte la foto de un ticket español en JSON"
+requires-python = ">=3.12,<3.13"
+dependencies = [
+    "fastapi",
+    "uvicorn[standard]",
+    "python-multipart",
+    "pydantic-settings",
+    "pydantic-ai-slim[google,openai]>=2,<3",
+    "pillow",
+    "pillow-heif",
+]
+
+[dependency-groups]
+dev = ["pytest", "pytest-asyncio", "httpx"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["ticket_scanner"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+markers = ["live: llama a un modelo real"]
+addopts = "-m 'not live'"
