@@ -3,11 +3,12 @@
 from functools import lru_cache
 from pathlib import Path
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    api_key: str
+    api_key: str = Field(min_length=1)
     aistudio_key: str | None = None
     ticket_model: str = "google:gemini-3.5-flash-lite"
     ticket_retry_model: str = "google:gemini-3.8-flash"

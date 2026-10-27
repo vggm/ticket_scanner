@@ -25,3 +25,9 @@ def test_api_key_required(monkeypatch):
     monkeypatch.delenv("API_KEY", raising=False)
     with pytest.raises(ValidationError):
         Settings(_env_file=None)
+
+
+def test_api_key_empty_rejected(monkeypatch):
+    monkeypatch.setenv("API_KEY", "")
+    with pytest.raises(ValidationError):
+        Settings(_env_file=None)
