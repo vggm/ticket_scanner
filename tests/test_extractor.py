@@ -2,7 +2,7 @@ import json
 from datetime import date
 
 import pytest
-from pydantic_ai.exceptions import ModelHTTPError
+from pydantic_ai.exceptions import ModelHTTPError, ModelTimeoutError
 from pydantic_ai.messages import (
     BinaryContent,
     ModelRequest,
@@ -18,6 +18,7 @@ from pydantic_ai.models.ollama import OllamaModel
 from ticket_scanner.config import Settings
 from ticket_scanner.extractor import (
     Extractor,
+    MODEL_TIMEOUT_S,
     ModelUnavailable,
     NotAReceipt,
     build_model,
@@ -33,6 +34,8 @@ def item(desc, qty, price, amount):
 
 GOOD = {
     "is_receipt": True,
+    "legible": True,
+    "multiple_receipts": False,
     "store_name": "SUPER",
     "store_tax_id": "A12345678",
     "date": "2026-10-27",
@@ -206,3 +209,44 @@ async def test_retry_receives_all_images():
         [b"one", b"two"], TODAY
     )
     assert [c.data for c in seen[0] if isinstance(c, BinaryContent)] == [b"one", b"two"]
+
+
+async def test_not_legible_returns_revisar_with_low_quality():
+    r = await Extractor(fm({**GOOD, "legible": False}, "lite")).extract(JPEG, TODAY)
+    assert r.response.status == "revisar"
+    assert [w.code for w in r.response.warnings] == ["low_quality"]
+
+
+def test_prompt_mentions_quality_flags():
+    from ticket_scanner.prompt import INSTRUCTIONS
+
+    assert "legible" in INSTRUCTIONS and "multiple_receipts" in INSTRUCTIONS
+
+
+def timing_out(name: str) -> FunctionModel:
+    def fn(messages, info):
+        raise ModelTimeoutError(name, "timeout")
+
+    return FunctionModel(fn, model_name=name)
+
+
+async def test_model_settings_include_timeout_and_temperature():
+    seen: list = []
+
+    def fn(messages, info):
+        seen.append(info.model_settings)
+        return ModelResponse(parts=[TextPart(json.dumps(GOOD))])
+
+    await Extractor(FunctionModel(fn, model_name="lite")).extract(JPEG, TODAY)
+    assert seen[0]["timeout"] == MODEL_TIMEOUT_S and seen[0]["temperature"] == 0
+
+
+async def test_primary_timeout_raises_model_unavailable_without_retry_after():
+    with pytest.raises(ModelUnavailable) as exc:
+        await Extractor(timing_out("lite")).extract(JPEG, TODAY)
+    assert exc.value.retry_after is None
+
+
+async def test_retry_timeout_returns_first_result():
+    r = await Extractor(fm(BAD, "lite"), retry=timing_out("flash")).extract(JPEG, TODAY)
+    assert r.retried and r.model_used == "lite" and r.response.status == "revisar"

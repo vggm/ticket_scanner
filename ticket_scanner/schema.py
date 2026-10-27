@@ -21,6 +21,13 @@ class ExtractedItem(BaseModel):
 
 class TicketExtraction(BaseModel):
     is_receipt: bool = Field(description="true si la imagen es un ticket de compra, si no false")
+    legible: bool = Field(
+        description="false si la foto está borrosa, oscura, cortada o hay partes del ticket "
+        "que no se pueden leer con seguridad"
+    )
+    multiple_receipts: bool = Field(
+        description="true si en las imágenes aparece más de un ticket distinto"
+    )
     store_name: str | None = Field(description="Nombre del comercio. null si no se lee")
     store_tax_id: str | None = Field(description="NIF/CIF del comercio. null si no se lee")
     date: str | None = Field(

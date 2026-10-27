@@ -24,6 +24,9 @@ from .prompt import INSTRUCTIONS
 from .schema import TicketExtraction, TicketResponse, build_response
 from .validation import check
 
+# Límite por llamada al modelo (s): Gemini saturado puede colgarse minutos.
+MODEL_TIMEOUT_S = 60
+
 agent = Agent(
     output_type=NativeOutput(TicketExtraction),
     instructions=INSTRUCTIONS,
@@ -116,7 +119,7 @@ class Extractor:
             run = await agent.run(
                 [text, *(BinaryContent(data=img, media_type="image/jpeg") for img in images)],
                 model=model,
-                model_settings={"temperature": 0},
+                model_settings={"temperature": 0, "timeout": MODEL_TIMEOUT_S},
             )
         except (FallbackExceptionGroup, ModelAPIError, UnexpectedModelBehavior) as exc:
             raise ModelUnavailable(_retry_after(exc)) from exc

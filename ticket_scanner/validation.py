@@ -73,4 +73,20 @@ def check(extraction: TicketExtraction, today: datetime.date) -> list[TicketWarn
             TicketWarning(code="date_future", message=f"La fecha {fecha} es posterior a hoy ({today})")
         )
 
+    if not extraction.legible:
+        warnings.append(
+            TicketWarning(
+                code="low_quality",
+                message="La foto no se lee bien: repítela con más luz y enfocada",
+            )
+        )
+    if extraction.multiple_receipts:
+        warnings.append(
+            TicketWarning(
+                code="multiple_receipts",
+                message="Hay varios tickets en la foto: se ha extraído solo uno; "
+                "fotografía cada ticket por separado",
+            )
+        )
+
     return warnings
