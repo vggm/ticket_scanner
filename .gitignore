@@ -12,3 +12,4 @@ __pycache__/
 /*.png
 /*.heic
 /*.webp
+tests/eval/
