@@ -26,6 +26,8 @@ from .image import InvalidImage, preprocess
 
 logger = logging.getLogger(__name__)
 
+MAX_IMAGES = 5  # fotos por ticket (un ticket largo se parte en varias)
+
 ZONA_TICKETS = ZoneInfo("Europe/Madrid")  # los tickets son españoles; el contenedor va en UTC
 
 
@@ -51,7 +53,7 @@ def create_app(settings: Settings | None = None, extractor: Extractor | None = N
 
     @app.post("/v1/tickets/extract")
     async def extract(
-        image: UploadFile | None = File(None),
+        image: list[UploadFile] | None = File(None),
         x_api_key: str | None = Header(None),
     ):
         if x_api_key is None or not secrets.compare_digest(
@@ -60,24 +62,36 @@ def create_app(settings: Settings | None = None, extractor: Extractor | None = N
             return _error(401, "unauthorized", "API key ausente o incorrecta")
 
         start = time.perf_counter()
-        data = b""
-        jpeg: bytes | None = None
+        originals: list[bytes] = []
+        jpegs: list[bytes] = []
         result: ExtractionResult | None = None
         headers: dict | None = None
 
         try:
-            if image is None:
+            if not image:
                 raise InvalidImage("Falta el campo 'image'")
-            limit = settings.max_upload_mb * 1024 * 1024
-            data = await image.read(limit + 1)
-            if len(data) > limit:
+            if len(image) > MAX_IMAGES:
                 status, code, message = (
-                    413, "too_large", f"La imagen supera el máximo de {settings.max_upload_mb} MB"
+                    400, "too_many_images", f"Demasiadas imágenes: el máximo es {MAX_IMAGES}"
                 )
             else:
-                jpeg = await run_in_threadpool(preprocess, data, settings.image_max_side)
-                result = await extractor.extract(jpeg, datetime.now(ZONA_TICKETS).date())
-                status, code, message = 200, None, None
+                limit = settings.max_upload_mb * 1024 * 1024
+                too_large = False
+                for upload in image:
+                    data = await upload.read(limit + 1)
+                    originals.append(data)
+                    if len(data) > limit:
+                        too_large = True
+                        break
+                if too_large:
+                    status, code, message = (
+                        413, "too_large", f"La imagen supera el máximo de {settings.max_upload_mb} MB"
+                    )
+                else:
+                    for data in originals:
+                        jpegs.append(await run_in_threadpool(preprocess, data, settings.image_max_side))
+                    result = await extractor.extract(jpegs, datetime.now(ZONA_TICKETS).date())
+                    status, code, message = 200, None, None
         except InvalidImage as exc:
             status, code, message = 400, "invalid_image", f"Imagen no válida: {exc}"
         except NotAReceipt as exc:
@@ -91,7 +105,7 @@ def create_app(settings: Settings | None = None, extractor: Extractor | None = N
                 headers = {"Retry-After": str(int(math.ceil(exc.retry_after)))}
 
         entry = LogEntry(
-            image_sha256=hashlib.sha256(data).hexdigest(),
+            image_sha256=",".join(hashlib.sha256(d).hexdigest() for d in originals),
             http_status=status,
             latency_ms=0,
             error=code,
@@ -107,12 +121,15 @@ def create_app(settings: Settings | None = None, extractor: Extractor | None = N
             entry.warnings = [w.model_dump() for w in result.response.warnings]
             if status == 200:
                 entry.response = result.response.model_dump(mode="json")
-        if jpeg is not None and settings.debug_save_images:
-            try:
-                path = await run_in_threadpool(save_image, settings.debug_images_dir, jpeg)
-                entry.image_path = str(path)
-            except Exception:
-                logger.exception("No se pudo guardar la imagen de depuración")
+        if jpegs and settings.debug_save_images:
+            paths = []
+            for jpeg in jpegs:
+                try:
+                    path = await run_in_threadpool(save_image, settings.debug_images_dir, jpeg)
+                    paths.append(str(path))
+                except Exception:
+                    logger.exception("No se pudo guardar la imagen de depuración")
+            entry.image_path = ",".join(paths) or None
         entry.latency_ms = int((time.perf_counter() - start) * 1000)
         await run_in_threadpool(record, settings.debug_db_path, entry)
 

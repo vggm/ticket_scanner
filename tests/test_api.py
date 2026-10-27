@@ -1,3 +1,4 @@
+import hashlib
 import io
 import logging
 import sqlite3
@@ -39,8 +40,10 @@ def _result(status="ok") -> ExtractionResult:
 class FakeExtractor:
     def __init__(self, exc: Exception | None = None):
         self.exc = exc
+        self.received: list[list[bytes]] = []
 
-    async def extract(self, jpeg, today):
+    async def extract(self, images, today):
+        self.received.append(images)
         if self.exc:
             raise self.exc
         return _result()
@@ -54,6 +57,18 @@ def db(tmp_path):
 def make_client(tmp_path, exc=None, **kw):
     settings = Settings(_env_file=None, api_key="k", debug_db_path=tmp_path / "d.db", **kw)
     return TestClient(create_app(settings, FakeExtractor(exc)))
+
+
+def jpeg_of(side: int) -> bytes:
+    buf = io.BytesIO()
+    Image.new("RGB", (side, side), "white").save(buf, "JPEG")
+    return buf.getvalue()
+
+
+def post_many(client, datas, key="k"):
+    headers = {"X-API-Key": key} if key else {}
+    files = [("image", (f"t{i}.jpg", d, "image/jpeg")) for i, d in enumerate(datas)]
+    return client.post("/v1/tickets/extract", files=files, headers=headers)
 
 
 @pytest.fixture
@@ -169,3 +184,57 @@ def test_logging_failure_does_not_break_response(tmp_path):
 def test_text_field_named_image_is_400_invalid_image(client):
     r = client.post("/v1/tickets/extract", data={"image": "texto"}, headers={"X-API-Key": "k"})
     assert r.status_code == 400 and r.json()["error"] == "invalid_image"
+
+
+def test_two_images_reach_extractor_in_order(tmp_path):
+    settings = Settings(_env_file=None, api_key="k", debug_db_path=tmp_path / "d.db")
+    fake = FakeExtractor()
+    client = TestClient(create_app(settings, fake))
+    r = post_many(client, [jpeg_of(40), jpeg_of(80)])
+    assert r.status_code == 200
+    assert len(fake.received) == 1 and len(fake.received[0]) == 2
+    sizes = [Image.open(io.BytesIO(b)).size for b in fake.received[0]]
+    assert sizes == [(40, 40), (80, 80)]
+
+
+def test_one_image_reaches_extractor_as_list(tmp_path):
+    settings = Settings(_env_file=None, api_key="k", debug_db_path=tmp_path / "d.db")
+    fake = FakeExtractor()
+    assert post(TestClient(create_app(settings, fake)), JPEG).status_code == 200
+    assert len(fake.received[0]) == 1
+
+
+def test_six_images_400_too_many(tmp_path):
+    client = make_client(tmp_path)
+    r = post_many(client, [JPEG] * 6)
+    assert r.status_code == 400 and r.json()["error"] == "too_many_images"
+    assert rows(tmp_path / "d.db")[0][:2] == (400, "too_many_images")
+
+
+def test_five_images_ok(client):
+    assert post_many(client, [JPEG] * 5).status_code == 200
+
+
+def test_any_invalid_image_400(client):
+    r = post_many(client, [JPEG, b"xx"])
+    assert r.status_code == 400 and r.json()["error"] == "invalid_image"
+
+
+def test_any_too_large_413(tmp_path):
+    client = make_client(tmp_path, max_upload_mb=1)
+    r = post_many(client, [JPEG, b"\0" * (1024 * 1024 + 1)])
+    assert r.status_code == 413 and r.json()["error"] == "too_large"
+
+
+def test_two_images_saved_and_logged(tmp_path):
+    images = tmp_path / "img"
+    client = make_client(tmp_path, debug_save_images=True, debug_images_dir=images)
+    a, b = jpeg_of(40), jpeg_of(80)
+    assert post_many(client, [a, b]).status_code == 200
+    assert len(list(images.iterdir())) == 2
+    sha, path = sqlite3.connect(tmp_path / "d.db").execute(
+        "select image_sha256, image_path from extractions"
+    ).fetchone()
+    assert sha == f"{hashlib.sha256(a).hexdigest()},{hashlib.sha256(b).hexdigest()}"
+    paths = path.split(",")
+    assert len(paths) == 2 and all(p.startswith(str(images)) for p in paths)

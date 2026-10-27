@@ -104,11 +104,17 @@ class Extractor:
         self.primary = primary
         self.retry = retry
 
-    async def _call(self, model: Model, jpeg: bytes, today: date):
+    async def _call(self, model: Model, images: list[bytes], today: date):
         """Una extracción con un modelo; devuelve (resultado, avisos, tokens_in, tokens_out)."""
+        text = "Extrae los datos de este ticket."
+        if len(images) > 1:
+            text += (
+                " Las imágenes son partes consecutivas del mismo ticket, de arriba abajo, y pueden"
+                " solaparse: si una línea aparece en dos imágenes, inclúyela una sola vez."
+            )
         try:
             run = await agent.run(
-                ["Extrae los datos de este ticket.", BinaryContent(data=jpeg, media_type="image/jpeg")],
+                [text, *(BinaryContent(data=img, media_type="image/jpeg") for img in images)],
                 model=model,
                 model_settings={"temperature": 0},
             )
@@ -129,13 +135,13 @@ class Extractor:
             raise NotAReceipt(res)
         return res
 
-    async def extract(self, jpeg: bytes, today: date) -> ExtractionResult:
-        first = await self._call(self.primary, jpeg, today)
+    async def extract(self, images: list[bytes], today: date) -> ExtractionResult:
+        first = await self._call(self.primary, images, today)
         if not first.response.warnings or self.retry is None:
             return first
         first.retried = True
         try:
-            second = await self._call(self.retry, jpeg, today)
+            second = await self._call(self.retry, images, today)
         except (ModelUnavailable, NotAReceipt):
             return first
         best = first if len(first.response.warnings) < len(second.response.warnings) else second

@@ -3,7 +3,13 @@ from datetime import date
 
 import pytest
 from pydantic_ai.exceptions import ModelHTTPError
-from pydantic_ai.messages import ModelResponse, TextPart
+from pydantic_ai.messages import (
+    BinaryContent,
+    ModelRequest,
+    ModelResponse,
+    TextPart,
+    UserPromptPart,
+)
 from pydantic_ai.models.fallback import FallbackModel
 from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.models.google import GoogleModel
@@ -17,7 +23,7 @@ from ticket_scanner.extractor import (
     build_model,
 )
 
-JPEG = b"\xff\xd8fake"
+JPEG = [b"\xff\xd8fake"]
 TODAY = date(2026, 10, 27)
 
 
@@ -162,3 +168,41 @@ async def test_429_odd_body_is_ignored(body):
     with pytest.raises(ModelUnavailable) as e:
         await Extractor(FunctionModel(boom, model_name="m")).extract(JPEG, TODAY)
     assert e.value.retry_after is None
+
+
+OVERLAP = "pueden solaparse"
+
+
+def recording(data: dict, name: str, seen: list) -> FunctionModel:
+    def fn(messages, info):
+        req = next(m for m in messages if isinstance(m, ModelRequest))
+        part = next(p for p in req.parts if isinstance(p, UserPromptPart))
+        seen.append(part.content)
+        return ModelResponse(parts=[TextPart(json.dumps(data))])
+
+    return FunctionModel(fn, model_name=name)
+
+
+async def test_two_images_single_request_with_overlap_text():
+    seen: list = []
+    await Extractor(recording(GOOD, "lite", seen)).extract([b"one", b"two"], TODAY)
+    assert len(seen) == 1
+    texts = [c for c in seen[0] if isinstance(c, str)]
+    blobs = [c.data for c in seen[0] if isinstance(c, BinaryContent)]
+    assert blobs == [b"one", b"two"]
+    assert len(texts) == 1 and OVERLAP in texts[0]
+
+
+async def test_one_image_has_no_overlap_text():
+    seen: list = []
+    await Extractor(recording(GOOD, "lite", seen)).extract([b"one"], TODAY)
+    texts = [c for c in seen[0] if isinstance(c, str)]
+    assert texts == ["Extrae los datos de este ticket."]
+
+
+async def test_retry_receives_all_images():
+    seen: list = []
+    await Extractor(fm(BAD, "lite"), retry=recording(GOOD, "flash", seen)).extract(
+        [b"one", b"two"], TODAY
+    )
+    assert [c.data for c in seen[0] if isinstance(c, BinaryContent)] == [b"one", b"two"]

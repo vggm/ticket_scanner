@@ -21,6 +21,12 @@ En WSL usa `127.0.0.1` en lugar de `localhost` (p. ej. `curl -s 127.0.0.1:8000/h
 curl -H "X-API-Key: $API_KEY" -F image=@ticket.jpg localhost:8000/v1/tickets/extract
 ```
 
+Un ticket largo puede partirse en varias fotos (de 1 a 5): repite el campo `image`, en orden de arriba abajo. Las fotos pueden solaparse; más de 5 devuelve 400 `too_many_images`.
+
+```bash
+curl -H "X-API-Key: $API_KEY" -F image=@arriba.jpg -F image=@abajo.jpg localhost:8000/v1/tickets/extract
+```
+
 Respuesta (ejemplo):
 
 ```json
