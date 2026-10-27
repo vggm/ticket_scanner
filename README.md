@@ -1,10 +1,10 @@
 # ticket_scanner
 
-Servicio HTTP que recibe la foto de un ticket español y devuelve un JSON con comercio, fecha, líneas, IVA y total, extraído con un modelo de visión (Gemini por defecto, Ollama como respaldo opcional).
+Servicio HTTP que recibe la foto de un ticket español y devuelve un JSON con comercio, fecha, líneas y total, extraído con un modelo de visión (Gemini por defecto, Ollama como respaldo opcional).
 
 ## Configuración
 
-Copia `.env.example` a `.env` y rellena al menos `API_KEY` (clave que exigirá el servicio en `X-API-Key`) y `AISTUDIO_KEY` (clave de Google AI Studio). El resto de variables están documentadas por sus valores por defecto en `.env.example`.
+Copia `.env.example` a `.env` y rellena al menos `API_KEY` (clave que exigirá el servicio en `X-API-Key`) y `AISTUDIO_KEY` (clave de Google AI Studio). El contenedor no arranca sin `AISTUDIO_KEY`. El resto de variables están documentadas por sus valores por defecto en `.env.example`.
 
 ## Arranque
 
@@ -12,6 +12,8 @@ Copia `.env.example` a `.env` y rellena al menos `API_KEY` (clave que exigirá e
 podman compose up -d --build
 curl -s localhost:8000/health
 ```
+
+En WSL usa `127.0.0.1` en lugar de `localhost` (p. ej. `curl -s 127.0.0.1:8000/health`).
 
 ## Uso
 
@@ -32,7 +34,7 @@ Respuesta (ejemplo):
   "items": [
     {"description": "LECHE ENTERA", "quantity": 2, "unit_price_cents": 95, "amount_cents": 190}
   ],
-  "model": "google:gemini-3.5-flash-lite"
+  "model": "gemini-3.5-flash-lite"
 }
 ```
 
