@@ -5,3 +5,13 @@ eval/results/
 __pycache__/
 .venv/
 .pytest_cache/
+*.db
+.claude/worktrees/
+/*.jpg
+/*.jpeg
+/*.png
+/*.heic
+/*.webp
+tests/eval/
+.env.*
+!.env.example
