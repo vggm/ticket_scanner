@@ -7,7 +7,8 @@ from pillow_heif import register_heif_opener
 
 register_heif_opener()
 
-FORMATOS_VALIDOS = {"JPEG", "PNG", "WEBP", "HEIF"}
+# MPO: JPEG con datos MPF (HDR de iPhone, muchos Android); se usa su primer fotograma
+FORMATOS_VALIDOS = {"JPEG", "PNG", "WEBP", "HEIF", "MPO"}
 
 
 class InvalidImage(Exception):

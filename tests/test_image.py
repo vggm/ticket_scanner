@@ -53,3 +53,10 @@ def test_rejects_empty():
 def test_rejects_unsupported_format():
     with pytest.raises(InvalidImage):
         preprocess(make("GIF", (10, 10)), 2048)
+
+
+def test_accepts_mpo():
+    img = Image.new("RGB", (100, 100), "white")
+    buf = BytesIO()
+    img.save(buf, format="MPO", save_all=True, append_images=[Image.new("RGB", (50, 50))])
+    assert Image.open(BytesIO(preprocess(buf.getvalue(), 2048))).format == "JPEG"
