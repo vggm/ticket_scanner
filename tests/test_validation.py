@@ -42,7 +42,7 @@ def test_sum_mismatch():
 def test_line_mismatch_reports_line_number():
     items = [ExtractedItem(description="LECHE", quantity=2, unit_price=0.95, amount=2.50)]
     ws = check(ex(items=items, total=2.50), TODAY)
-    assert codes(ws) == ["line_mismatch"] and "1" in ws[0].message
+    assert codes(ws) == ["line_mismatch"] and "Línea 1" in ws[0].message
 
 
 def test_line_without_quantity_is_not_checked():
@@ -80,3 +80,8 @@ def test_date_none_is_invalid():
 def test_empty_ticket_with_null_total():
     c = codes(check(ex(items=[], total=None), TODAY))
     assert "no_items" in c and "total_not_positive" in c
+
+
+def test_no_items_with_positive_total_also_sum_mismatch():
+    c = codes(check(ex(items=[], total=5.0), TODAY))
+    assert "no_items" in c and "sum_mismatch" in c

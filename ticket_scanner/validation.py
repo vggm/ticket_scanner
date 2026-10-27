@@ -27,7 +27,7 @@ def check(extraction: TicketExtraction, today: datetime.date) -> list[TicketWarn
         )
 
     suma = sum(to_cents(i.amount) for i in extraction.items)
-    if extraction.items and abs(suma - total) > TOLERANCIA:
+    if abs(suma - total) > TOLERANCIA:
         warnings.append(
             TicketWarning(
                 code="sum_mismatch",
