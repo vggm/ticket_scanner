@@ -13,3 +13,5 @@ __pycache__/
 /*.heic
 /*.webp
 tests/eval/
+.env.*
+!.env.example
