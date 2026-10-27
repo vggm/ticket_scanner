@@ -16,3 +16,4 @@ tests/eval/
 .env.*
 !.env.example
 .superpowers/
+docs/

@@ -179,5 +179,4 @@ ticket_scanner/
   validation.py   comprobaciones aritméticas y de coherencia
   debug_log.py    registro en SQLite
   config.py       variables de entorno
-docs/superpowers/ estudio del estado del arte, especificación y plan
 ```
