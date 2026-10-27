@@ -164,3 +164,8 @@ def test_logging_failure_does_not_break_response(tmp_path):
     settings = Settings(_env_file=None, api_key="k", debug_db_path=blocker / "d.db")
     client = TestClient(create_app(settings, FakeExtractor()))
     assert post(client, JPEG).status_code == 200
+
+
+def test_text_field_named_image_is_400_invalid_image(client):
+    r = client.post("/v1/tickets/extract", data={"image": "texto"}, headers={"X-API-Key": "k"})
+    assert r.status_code == 400 and r.json()["error"] == "invalid_image"

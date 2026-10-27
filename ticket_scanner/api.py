@@ -5,9 +5,11 @@ import logging
 import math
 import secrets
 import time
-from datetime import date
+from datetime import datetime
+from zoneinfo import ZoneInfo
 
-from fastapi import FastAPI, File, Header, UploadFile
+from fastapi import FastAPI, File, Header, Request, UploadFile
+from fastapi.exceptions import RequestValidationError
 from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 
@@ -24,6 +26,8 @@ from .image import InvalidImage, preprocess
 
 logger = logging.getLogger(__name__)
 
+ZONA_TICKETS = ZoneInfo("Europe/Madrid")  # los tickets son españoles; el contenedor va en UTC
+
 
 def _error(status: int, code: str, message: str, headers: dict | None = None) -> JSONResponse:
     return JSONResponse(
@@ -35,6 +39,11 @@ def create_app(settings: Settings | None = None, extractor: Extractor | None = N
     settings = settings or get_settings()
     extractor = extractor or extractor_from_settings(settings)
     app = FastAPI(title="ticket_scanner")
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid_request(request: Request, exc: RequestValidationError):
+        # evita el 422 por defecto de FastAPI, que chocaría con not_a_receipt
+        return _error(400, "invalid_image", "Petición no válida: se espera el fichero 'image'")
 
     @app.get("/health")
     async def health():
@@ -67,7 +76,7 @@ def create_app(settings: Settings | None = None, extractor: Extractor | None = N
                 )
             else:
                 jpeg = await run_in_threadpool(preprocess, data, settings.image_max_side)
-                result = await extractor.extract(jpeg, date.today())
+                result = await extractor.extract(jpeg, datetime.now(ZONA_TICKETS).date())
                 status, code, message = 200, None, None
         except InvalidImage as exc:
             status, code, message = 400, "invalid_image", f"Imagen no válida: {exc}"
