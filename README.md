@@ -24,7 +24,7 @@ foto(s) ──► preprocesado ──► modelo principal ──► validación 
 4. **Reintento.** Si hay algún aviso, repite la extracción con un modelo más potente (Gemini 3.8 Flash) y devuelve el resultado con menos avisos. Si ese segundo modelo falla o tarda, se devuelve el primero.
 5. **Respaldo (opcional).** Si Google no responde o se agota la cuota, puede pasar a un modelo local con Ollama.
 
-Cada llamada al modelo tiene un límite de 60 s, para que una petición no se quede colgada si Gemini está saturado.
+Cada llamada al modelo tiene un límite de 60 s con Gemini y de 180 s con Ollama (la primera carga de un modelo local es lenta), para que una petición no se quede colgada.
 
 ## Puesta en marcha
 

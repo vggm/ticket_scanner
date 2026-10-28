@@ -4,6 +4,7 @@ import re
 from dataclasses import dataclass
 from datetime import date
 
+from openai import AsyncOpenAI
 from pydantic_ai import Agent, BinaryContent
 from pydantic_ai.exceptions import (
     FallbackExceptionGroup,
@@ -24,8 +25,10 @@ from .prompt import INSTRUCTIONS
 from .schema import TicketExtraction, TicketResponse, build_response
 from .validation import check
 
-# Límite por llamada al modelo (s): Gemini saturado puede colgarse minutos.
+# Límite por llamada a Gemini (s): saturado puede colgarse minutos.
 MODEL_TIMEOUT_S = 60
+# Límite por llamada a Ollama (s): la carga en frío de un modelo local pasa de 60 s.
+OLLAMA_TIMEOUT_S = 180
 
 agent = Agent(
     output_type=NativeOutput(TicketExtraction),
@@ -61,9 +64,20 @@ def build_model(spec: str, settings: Settings) -> Model:
     """'google:<nombre>' u 'ollama:<nombre>' (se parte solo en el primer ':')."""
     prefix, _, name = spec.partition(":")
     if prefix == "google":
-        return GoogleModel(name, provider=GoogleProvider(api_key=settings.aistudio_key))
+        return GoogleModel(
+            name,
+            provider=GoogleProvider(api_key=settings.aistudio_key),
+            settings={"timeout": MODEL_TIMEOUT_S},
+        )
     if prefix == "ollama":
-        return OllamaModel(name, provider=OllamaProvider(base_url=settings.ollama_base_url))
+        # max_retries=0: el cliente OpenAI reintenta 2 veces por defecto (cada llamada podía durar 3×60 s).
+        # reasoning_effort="none": los modelos Qwen piensan por defecto (47 s frente a pocos segundos).
+        client = AsyncOpenAI(base_url=settings.ollama_base_url, api_key="ollama", max_retries=0)
+        return OllamaModel(
+            name,
+            provider=OllamaProvider(openai_client=client),
+            settings={"timeout": OLLAMA_TIMEOUT_S, "openai_reasoning_effort": "none"},
+        )
     raise ValueError(f"Modelo no soportado: {spec!r}")
 
 
@@ -119,7 +133,7 @@ class Extractor:
             run = await agent.run(
                 [text, *(BinaryContent(data=img, media_type="image/jpeg") for img in images)],
                 model=model,
-                model_settings={"temperature": 0, "timeout": MODEL_TIMEOUT_S},
+                model_settings={"temperature": 0},
             )
         except (FallbackExceptionGroup, ModelAPIError, UnexpectedModelBehavior) as exc:
             raise ModelUnavailable(_retry_after(exc)) from exc
