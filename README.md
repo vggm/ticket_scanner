@@ -48,7 +48,7 @@ En WSL usa `127.0.0.1` en lugar de `localhost`.
 | `AISTUDIO_KEY` | — | Clave de Google AI Studio. El servicio la usa para llamar a Gemini. **No es la misma que `API_KEY`.** |
 | `TICKET_MODEL` | `google:gemini-3.5-flash-lite` | Modelo principal. |
 | `TICKET_RETRY_MODEL` | `google:gemini-3.8-flash` | Modelo del reintento cuando hay avisos. Vacío lo desactiva. |
-| `TICKET_FALLBACK_MODEL` | (vacío) | Modelo de respaldo si el proveedor falla, por ejemplo `ollama:qwen3-vl:8b`. |
+| `TICKET_FALLBACK_MODEL` | (vacío) | Modelo de respaldo si el proveedor falla, por ejemplo `ollama:qwen3.5:4b`. |
 | `OLLAMA_BASE_URL` | `http://ollama:11434/v1` | Dirección de Ollama. |
 | `IMAGE_MAX_SIDE` | `2048` | Lado mayor, en px, al que se reduce cada foto. |
 | `MAX_UPLOAD_MB` | `10` | Tamaño máximo de cada foto. |
@@ -144,10 +144,25 @@ Los errores devuelven `{"error": "<código>", "message": "<texto>"}`.
 
 ```bash
 podman compose --profile ollama up -d
-podman compose exec ollama ollama pull qwen3-vl:8b
+podman compose exec ollama ollama pull qwen3.5:4b
 ```
 
-Después pon en `.env` `TICKET_FALLBACK_MODEL=ollama:qwen3-vl:8b` y reinicia el servicio con `podman compose up -d`. También puedes usarlo como modelo principal (`TICKET_MODEL=ollama:qwen3-vl:8b`) para no depender de Google, aunque es más lento y menos preciso.
+Después pon en `.env` `TICKET_FALLBACK_MODEL=ollama:qwen3.5:4b` y reinicia el servicio con `podman compose up -d`. También puedes usarlo como modelo principal (`TICKET_MODEL=ollama:qwen3.5:4b`) para no depender de Google.
+
+El servicio pide a los modelos de Ollama que respondan sin razonar antes (*thinking*), que es lo que más tiempo consume. Medido con una RTX 5070 de 12 GB y un ticket de restaurante:
+
+| Modelo | VRAM | En frío | En caliente | Comentario |
+|---|---|---|---|---|
+| `qwen3.5:4b` | 3,4 GB | 6 s | 2,6 s | Recomendado: pequeño y rápido. |
+| `qwen3-vl:4b-instruct` | 4,3 GB | 5,5 s | 2,3 s | Alternativa con el mismo resultado. |
+| `qwen3.5:9b` | 5,9 GB | 9 s | 4,4 s | Si el de 4B se equivoca con tus tickets. |
+| `qwen3-vl:8b` | 6,6 GB | 61 s | 49 s | No recomendado: es la variante que razona siempre. Con `qwen3-vl`, usa las etiquetas `-instruct`. |
+
+Para comparar modelos con tus propias fotos (con los modelos ya descargados en Ollama):
+
+```bash
+uv run python scripts/bench_models.py --images carpeta_de_fotos --ollama http://127.0.0.1:11434 qwen3.5:4b qwen3.5:9b
+```
 
 ## Registro de depuración
 
