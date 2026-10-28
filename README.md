@@ -156,7 +156,7 @@ podman compose --profile ollama up -d
 podman compose exec ollama ollama pull qwen3.5:4b
 ```
 
-Después pon en `.env` `TICKET_FALLBACK_MODEL=ollama:qwen3.5:4b` (con `OLLAMA_BASE_URL` en su valor por defecto) y reinicia el servicio con `podman compose up -d`. También puedes usarlo como modelo principal (`TICKET_MODEL=ollama:qwen3.5:4b`) para no depender de Google.
+Después pon en `.env` `TICKET_FALLBACK_MODEL=ollama:qwen3.5:4b` (con `OLLAMA_BASE_URL` en su valor por defecto) y añade `COMPOSE_PROFILES=ollama`, para que `podman compose up -d` arranque también Ollama sin tener que poner `--profile ollama`. Reinicia con `podman compose up -d`. También puedes usarlo como modelo principal (`TICKET_MODEL=ollama:qwen3.5:4b`) para no depender de Google.
 
 La primera petición en una máquina nueva tarda alrededor de un minuto, porque se compilan los kernels de CUDA para la GPU. Se guardan en el volumen `ollama`, así que las siguientes cargas en frío tardan unos 8 s, aunque se recree el contenedor.
 
