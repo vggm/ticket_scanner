@@ -19,6 +19,7 @@ from ticket_scanner.config import Settings
 from ticket_scanner.extractor import (
     Extractor,
     MODEL_TIMEOUT_S,
+    OLLAMA_TIMEOUT_S,
     ModelUnavailable,
     NotAReceipt,
     build_model,
@@ -230,7 +231,7 @@ def timing_out(name: str) -> FunctionModel:
     return FunctionModel(fn, model_name=name)
 
 
-async def test_model_settings_include_timeout_and_temperature():
+async def test_run_settings_only_temperature():
     seen: list = []
 
     def fn(messages, info):
@@ -238,7 +239,32 @@ async def test_model_settings_include_timeout_and_temperature():
         return ModelResponse(parts=[TextPart(json.dumps(GOOD))])
 
     await Extractor(FunctionModel(fn, model_name="lite")).extract(JPEG, TODAY)
-    assert seen[0]["timeout"] == MODEL_TIMEOUT_S and seen[0]["temperature"] == 0
+    assert seen[0]["temperature"] == 0
+
+
+def test_google_model_settings(settings):
+    m = build_model("google:gemini-3.5-flash-lite", settings)
+    assert m.settings == {"timeout": MODEL_TIMEOUT_S}
+
+
+def test_ollama_model_settings(settings):
+    m = build_model("ollama:qwen3.5:4b", settings)
+    assert m.settings == {"timeout": OLLAMA_TIMEOUT_S, "openai_reasoning_effort": "none"}
+    assert m.client.max_retries == 0
+    assert str(m.client.base_url).startswith(settings.ollama_base_url)
+
+
+async def test_model_timeout_not_overridden_by_run_settings():
+    # el timeout del modelo debe llegar a la petición: la ejecución no lo pisa
+    seen: list = []
+
+    def fn(messages, info):
+        seen.append(info.model_settings)
+        return ModelResponse(parts=[TextPart(json.dumps(GOOD))])
+
+    model = FunctionModel(fn, model_name="lite", settings={"timeout": 7})
+    await Extractor(model).extract(JPEG, TODAY)
+    assert seen[0]["timeout"] == 7 and seen[0]["temperature"] == 0
 
 
 async def test_primary_timeout_raises_model_unavailable_without_retry_after():
