@@ -5,7 +5,6 @@ Uso: uv run python scripts/bench_models.py <modelo> [<modelo>...] [--images DIR]
 
 import argparse
 import asyncio
-import subprocess
 import time
 from datetime import date
 from pathlib import Path
@@ -15,14 +14,6 @@ import httpx
 from ticket_scanner.config import Settings
 from ticket_scanner.extractor import NotAReceipt, extractor_from_settings
 from ticket_scanner.image import preprocess
-
-
-def default_ollama_url() -> str:
-    """Ollama corre en Windows: su IP es la puerta de enlace de WSL (cambia en cada arranque)."""
-    out = subprocess.run(["ip", "route", "show", "default"], capture_output=True, text=True).stdout
-    parts = out.split()
-    host = parts[parts.index("via") + 1] if "via" in parts else "localhost"
-    return f"http://{host}:11434"
 
 
 async def run_photo(extractor, path: Path) -> dict:
@@ -82,7 +73,7 @@ async def main() -> None:
     ap = argparse.ArgumentParser(description="Compara modelos de Ollama con fotos de tickets.")
     ap.add_argument("models", nargs="+", metavar="modelo")
     ap.add_argument("--images", type=Path, default=Path("tests/eval/tickets"))
-    ap.add_argument("--ollama", default=default_ollama_url(), help="URL base de Ollama")
+    ap.add_argument("--ollama", default="http://127.0.0.1:11434", help="URL base de Ollama")
     args = ap.parse_args()
     url = args.ollama.rstrip("/")
     photos = sorted(p for p in args.images.iterdir() if p.is_file())

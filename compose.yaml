@@ -10,6 +10,11 @@ services:
   ollama:
     image: docker.io/ollama/ollama
     profiles: ["ollama"]
+    ports: ["127.0.0.1:11434:11434"]  # solo local: para scripts/bench_models.py
+    devices: ["nvidia.com/gpu=all"]  # CDI: requiere nvidia-container-toolkit
+    environment:
+      OLLAMA_CONTEXT_LENGTH: "8192"  # con el contexto por defecto no cabe en 12 GB de VRAM
+      CUDA_CACHE_PATH: /root/.ollama/cuda-cache  # en el volumen: compilar los kernels tarda ~30 s
     volumes:
       - ollama:/root/.ollama
 
