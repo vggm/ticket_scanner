@@ -142,12 +142,23 @@ Los errores devuelven `{"error": "<código>", "message": "<texto>"}`.
 
 ## Ollama (modelo local de respaldo)
 
+Ollama corre en su propio contenedor con acceso a la GPU de NVIDIA (CDI). Hace falta instalar una vez el *NVIDIA Container Toolkit* y generar la descripción de la GPU (en Arch: `sudo pacman -S nvidia-container-toolkit`; en otras distribuciones, el paquete de NVIDIA):
+
+```bash
+sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+podman run --rm --device nvidia.com/gpu=all docker.io/library/ubuntu:24.04 nvidia-smi -L   # debe listar la GPU
+```
+
+En WSL funciona igual: `nvidia-ctk` detecta el modo WSL. Después:
+
 ```bash
 podman compose --profile ollama up -d
 podman compose exec ollama ollama pull qwen3.5:4b
 ```
 
-Después pon en `.env` `TICKET_FALLBACK_MODEL=ollama:qwen3.5:4b` y reinicia el servicio con `podman compose up -d`. También puedes usarlo como modelo principal (`TICKET_MODEL=ollama:qwen3.5:4b`) para no depender de Google.
+Después pon en `.env` `TICKET_FALLBACK_MODEL=ollama:qwen3.5:4b` (con `OLLAMA_BASE_URL` en su valor por defecto) y reinicia el servicio con `podman compose up -d`. También puedes usarlo como modelo principal (`TICKET_MODEL=ollama:qwen3.5:4b`) para no depender de Google.
+
+La primera petición en una máquina nueva tarda alrededor de un minuto, porque se compilan los kernels de CUDA para la GPU. Se guardan en el volumen `ollama`, así que las siguientes cargas en frío tardan unos 8 s, aunque se recree el contenedor.
 
 El servicio pide a los modelos de Ollama que respondan sin razonar antes (*thinking*), que es lo que más tiempo consume. Medido con una RTX 5070 de 12 GB y un ticket de restaurante:
 
@@ -158,10 +169,10 @@ El servicio pide a los modelos de Ollama que respondan sin razonar antes (*think
 | `qwen3.5:9b` | 5,9 GB | 9 s | 4,4 s | Si el de 4B se equivoca con tus tickets. |
 | `qwen3-vl:8b` | 6,6 GB | 61 s | 49 s | No recomendado: es la variante que razona siempre. Con `qwen3-vl`, usa las etiquetas `-instruct`. |
 
-Para comparar modelos con tus propias fotos (con los modelos ya descargados en Ollama):
+Para comparar modelos con tus propias fotos (con los modelos ya descargados en Ollama; el contenedor publica el puerto 11434 solo en `127.0.0.1`):
 
 ```bash
-uv run python scripts/bench_models.py --images carpeta_de_fotos --ollama http://127.0.0.1:11434 qwen3.5:4b qwen3.5:9b
+uv run python scripts/bench_models.py --images carpeta_de_fotos qwen3.5:4b qwen3.5:9b
 ```
 
 ## Registro de depuración
