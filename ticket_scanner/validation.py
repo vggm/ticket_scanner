@@ -44,7 +44,8 @@ def check(extraction: TicketExtraction, today: datetime.date) -> list[TicketWarn
             )
         )
         real = to_cents(item.amount)
-        if abs(esperado - real) > TOLERANCIA:
+        # las líneas anuladas llevan importe negativo con cantidad y precio positivos
+        if min(abs(esperado - real), abs(-esperado - real)) > TOLERANCIA:
             warnings.append(
                 TicketWarning(
                     code="line_mismatch",

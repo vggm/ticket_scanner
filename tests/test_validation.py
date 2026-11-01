@@ -47,6 +47,23 @@ def test_line_mismatch_reports_line_number():
     assert codes(ws) == ["line_mismatch"] and "Línea 1" in ws[0].message
 
 
+def test_cancelled_line_negative_amount_is_accepted():
+    items = [
+        ExtractedItem(description="BERENJENA", quantity=0.945, unit_price=1.99, amount=1.88),
+        ExtractedItem(description="ANUL.BERENJENA", quantity=0.945, unit_price=1.99, amount=-1.88),
+        ExtractedItem(description="PAN", quantity=None, unit_price=None, amount=0.6),
+    ]
+    assert check(ex(items=items, total=0.6), TODAY) == []
+
+
+def test_cancelled_line_wrong_magnitude_is_mismatch():
+    items = [
+        ExtractedItem(description="ANUL.BERENJENA", quantity=0.945, unit_price=1.99, amount=-2.50),
+        ExtractedItem(description="PAN", quantity=None, unit_price=None, amount=5.0),
+    ]
+    assert codes(check(ex(items=items, total=2.50), TODAY)) == ["line_mismatch"]
+
+
 def test_line_without_quantity_is_not_checked():
     items = [ExtractedItem(description="PAN", quantity=None, unit_price=None, amount=0.6)]
     assert check(ex(items=items, total=0.6), TODAY) == []
