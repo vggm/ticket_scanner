@@ -48,7 +48,7 @@ En WSL usa `127.0.0.1` en lugar de `localhost`.
 | `AISTUDIO_KEY` | — | Clave de Google AI Studio. El servicio la usa para llamar a Gemini. **No es la misma que `API_KEY`.** |
 | `TICKET_MODEL` | `google:gemini-3.5-flash-lite` | Modelo principal. |
 | `TICKET_RETRY_MODEL` | `google:gemini-3.8-flash` | Modelo del reintento cuando hay avisos. Vacío lo desactiva. |
-| `TICKET_FALLBACK_MODEL` | (vacío) | Modelo de respaldo si el proveedor falla, por ejemplo `ollama:qwen3.5:4b`. |
+| `TICKET_FALLBACK_MODEL` | (vacío) | Modelo de respaldo si el proveedor falla, por ejemplo `ollama:gemma4:e4b`. |
 | `OLLAMA_BASE_URL` | `http://ollama:11434/v1` | Dirección de Ollama. |
 | `IMAGE_MAX_SIDE` | `2048` | Lado mayor, en px, al que se reduce cada foto. |
 | `MAX_UPLOAD_MB` | `10` | Tamaño máximo de cada foto. |
@@ -153,26 +153,31 @@ En WSL funciona igual: `nvidia-ctk` detecta el modo WSL. Después:
 
 ```bash
 podman compose --profile ollama up -d
-podman compose exec ollama ollama pull qwen3.5:4b
+podman compose exec ollama ollama pull gemma4:e4b
 ```
 
-Después pon en `.env` `TICKET_FALLBACK_MODEL=ollama:qwen3.5:4b` (con `OLLAMA_BASE_URL` en su valor por defecto) y añade `COMPOSE_PROFILES=ollama`, para que `podman compose up -d` arranque también Ollama sin tener que poner `--profile ollama`. Reinicia con `podman compose up -d`. También puedes usarlo como modelo principal (`TICKET_MODEL=ollama:qwen3.5:4b`) para no depender de Google.
+Después pon en `.env` `TICKET_FALLBACK_MODEL=ollama:gemma4:e4b` (con `OLLAMA_BASE_URL` en su valor por defecto) y añade `COMPOSE_PROFILES=ollama`, para que `podman compose up -d` arranque también Ollama sin tener que poner `--profile ollama`. Reinicia con `podman compose up -d`. También puedes usarlo como modelo principal (`TICKET_MODEL=ollama:gemma4:e4b`) para no depender de Google.
 
 La primera petición en una máquina nueva tarda alrededor de un minuto, porque se compilan los kernels de CUDA para la GPU. Se guardan en el volumen `ollama`, así que las siguientes cargas en frío tardan unos 8 s, aunque se recree el contenedor.
 
-El servicio pide a los modelos de Ollama que respondan sin razonar antes (*thinking*), que es lo que más tiempo consume. Medido con una RTX 5070 de 12 GB y un ticket de restaurante:
+El servicio pide a los modelos de Ollama que respondan sin razonar antes (*thinking*), que es lo que más tiempo consume. Medido con una RTX 5070 de 12 GB y 8 tickets de supermercado (Mercadona, Aldi, Lidl y Dia), comparando con lo que pone cada ticket:
 
-| Modelo | VRAM | En frío | En caliente | Comentario |
-|---|---|---|---|---|
-| `qwen3.5:4b` | 3,4 GB | 6 s | 2,6 s | Recomendado: pequeño y rápido. |
-| `qwen3-vl:4b-instruct` | 4,3 GB | 5,5 s | 2,3 s | Alternativa con el mismo resultado. |
-| `qwen3.5:9b` | 5,9 GB | 9 s | 4,4 s | Si el de 4B se equivoca con tus tickets. |
-| `qwen3-vl:8b` | 6,6 GB | 61 s | 49 s | No recomendado: es la variante que razona siempre. Con `qwen3-vl`, usa las etiquetas `-instruct`. |
+| Modelo | Tickets bien leídos | Errores sin aviso | VRAM | En caliente | Comentario |
+|---|---|---|---|---|---|
+| `gemma4:e4b` | 6/8 | 1 (año de la fecha) | 5,3 GB | 2–11 s | Recomendado: el que mejor lee los descuentos y las ofertas. |
+| `qwen3.5:4b` | 4/8 | 0 | 4,2 GB | 3–10 s | Más ligero. Se salta descuentos y toma el código de IVA de Aldi por la cantidad. |
+| `qwen3.5:9b` | 4/8 | 0 | 5,9 GB* | 5–16 s | No mejora al de 4B. |
+| `qwen3-vl:4b-instruct` | 4/8 | 1 (NIF) | 4,3 GB* | 3,5–13,5 s | Pone otros números en el NIF. |
+| `glm-ocr` | 5/8 | 2 (NIF) | 3,8 GB | 1–3 s | Solo con su prompt oficial y una plantilla de descripción e importe, que el servicio no usa. No da cantidades ni precios. |
+| `lfm3-vl:2b` | 0/8 | 0 | 2,5 GB | 1,5–5,5 s | No rellena bien los campos. |
+| `qwen3-vl:8b` | — | — | 6,6 GB* | 49 s | No recomendado: es la variante que razona siempre. Con `qwen3-vl`, usa las etiquetas `-instruct`. |
+
+Gemini 3.5 Flash-Lite leyó bien los 8. La VRAM es la que marca `nvidia-smi` con el modelo cargado; las marcadas con * son las que indica `ollama ps`, que se queda corto (para `gemma4:e4b` dice 538 MB).
 
 Para comparar modelos con tus propias fotos (con los modelos ya descargados en Ollama; el contenedor publica el puerto 11434 solo en `127.0.0.1`):
 
 ```bash
-uv run python scripts/bench_models.py --images carpeta_de_fotos qwen3.5:4b qwen3.5:9b
+uv run python scripts/bench_models.py --images carpeta_de_fotos gemma4:e4b qwen3.5:4b
 ```
 
 ## Registro de depuración
